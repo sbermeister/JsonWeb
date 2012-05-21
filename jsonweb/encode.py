@@ -240,6 +240,10 @@ def dumper(obj, **kw):
     """
     JSON encode your class instances by calling this function as you would call 
     :func:`json.dumps`. ``kw`` args will be passed to the underlying json.dumps call.
+
+    Accepted keywords:
+        - cls, to override the given encoder
+        - suppress, a list of extra fields to suppress (as well as those suppressed by the class)
     """
     return json.dumps(obj, cls=kw.pop("cls", JsonWebEncoder(suppress=kw.pop("suppress", []))), **kw)
 
