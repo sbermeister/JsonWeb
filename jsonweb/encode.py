@@ -151,90 +151,96 @@ def to_list(cls):
     cls._serialize_as = "json_list"
     return cls
 
+def JsonWebEncoder(**kw):
 
-class JsonWebEncoder(json.JSONEncoder):
-    """
-    This :class:`json.JSONEncoder` subclass is responsible for encoding instances of 
-    classess that have been decorated with :func:`to_object` or :func:`to_list`. Pass 
-    :class:`JsonWebEncoder` as the value for the ``cls`` keyword agrument to
-    :func:`json.dump` or :func:`json.dumps`.
-    
-    Example::
-    
-        json.dumps(obj_instance, cls=JsonWebEncoder)
-    
-    Using :func:`dumper` is a shortcut for the above call to :func:`json.dumps` ::
-    
-        dumper(obj_instance) #much nicer!
-    
-            
-    """
-    
-    _DT_FORMAT = "%Y-%m-%dT%H:%M:%S"
-    _D_FORMAT = "%Y-%m-%d"
-        
-    def default(self, o):        
-        try:
-            e_args = getattr(o, "_encode")
-        except AttributeError:
-            pass
-        else:
-            if e_args.serialize_as == "json_object":
-                if e_args.handler:
-                    return e_args.handler(o)
-                return self.object_handler(o)
-            elif e_args.serialize_as == "json_list":
-                return self.list_handler(o)
-            
-        if isinstance(o, datetime.datetime):
-            return o.strftime(self._DT_FORMAT)
-        if isinstance(o, datetime.date):
-            return o.strftime(self._D_FORMAT)
-        return json.JSONEncoder.default(self, o)
-    
-    def object_handler(self, obj):
+    # get hard supressed arguments from the kw args
+    hard_suppress = kw.pop("suppress", [])
+
+    class JsonWebEncoderClass(json.JSONEncoder):
         """
-        Handles encoding instance objects of classes decorated by :func:`to_object`. Returns
-        a dict containing all the key/value pairs in ``obj.__dict__``. Excluding attributes that 
+        This :class:`json.JSONEncoder` subclass is responsible for encoding instances of 
+        classess that have been decorated with :func:`to_object` or :func:`to_list`. Pass 
+        :class:`JsonWebEncoder` as the value for the ``cls`` keyword agrument to
+        :func:`json.dump` or :func:`json.dumps`.
         
-        * start with an underscore.
-        * were specified with the ``suppress`` keyword agrument of :func:`to_object`.
+        Example::
         
-        The returned dict will be encoded into JSON.
+            json.dumps(obj_instance, cls=JsonWebEncoder)
         
-        .. note::
+        Using :func:`dumper` is a shortcut for the above call to :func:`json.dumps` ::
         
-            Override this method if you wish to change how ALL objects are encoded into JSON objects.
-            
-        """        
-        suppress = obj._encode.suppress
-        json_obj = {}
-        for attr in dir(obj):
-            if not attr.startswith("_") and attr not in suppress:
-                json_obj[attr] = obj.__getattribute__(attr)
-        if "__type__" not in suppress:
-            json_obj["__type__"] = obj._encode.__type__
-        return json_obj
-    
+            dumper(obj_instance) #much nicer!
         
-    def list_handler(self, obj):
-        """
-        Handles encoding instance objects of classes decorated by :func:`to_list`. Simply calls
-        :class:`list` on ``obj``. Classes decorated by :func:`to_list` should define an ``__iter__``
-        method.
-        
-        .. note::
-        
-            Override this method if you wish to change how ALL objects are encoded into JSON lists.        
                 
-        """        
-        return list(obj)
+        """
+        
+        _DT_FORMAT = "%Y-%m-%dT%H:%M:%S"
+        _D_FORMAT = "%Y-%m-%d"
+            
+        def default(self, o):        
+            try:
+                e_args = getattr(o, "_encode")
+            except AttributeError:
+                pass
+            else:
+                if e_args.serialize_as == "json_object":
+                    if e_args.handler:
+                        return e_args.handler(o)
+                    return self.object_handler(o)
+                elif e_args.serialize_as == "json_list":
+                    return self.list_handler(o)
+                
+            if isinstance(o, datetime.datetime):
+                return o.strftime(self._DT_FORMAT)
+            if isinstance(o, datetime.date):
+                return o.strftime(self._D_FORMAT)
+            return json.JSONEncoder.default(self, o)
+        
+        def object_handler(self, obj):
+            """
+            Handles encoding instance objects of classes decorated by :func:`to_object`. Returns
+            a dict containing all the key/value pairs in ``obj.__dict__``. Excluding attributes that 
+            
+            * start with an underscore.
+            * were specified with the ``suppress`` keyword agrument of :func:`to_object`.
+            
+            The returned dict will be encoded into JSON.
+            
+            .. note::
+            
+                Override this method if you wish to change how ALL objects are encoded into JSON objects.
+                
+            """        
+            suppress = obj._encode.suppress
+            json_obj = {}
+            for attr in dir(obj):
+                if not attr.startswith("_") and attr not in suppress and attr not in hard_suppress:
+                    json_obj[attr] = obj.__getattribute__(attr)
+            if "__type__" not in suppress:
+                json_obj["__type__"] = obj._encode.__type__
+            return json_obj
+        
+            
+        def list_handler(self, obj):
+            """
+            Handles encoding instance objects of classes decorated by :func:`to_list`. Simply calls
+            :class:`list` on ``obj``. Classes decorated by :func:`to_list` should define an ``__iter__``
+            method.
+            
+            .. note::
+            
+                Override this method if you wish to change how ALL objects are encoded into JSON lists.        
+                    
+            """        
+            return list(obj)
+
+    return JsonWebEncoderClass
     
 def dumper(obj, **kw):
     """
     JSON encode your class instances by calling this function as you would call 
     :func:`json.dumps`. ``kw`` args will be passed to the underlying json.dumps call.
     """
-    return json.dumps(obj, cls=kw.pop("cls", JsonWebEncoder), **kw)
+    return json.dumps(obj, cls=kw.pop("cls", JsonWebEncoder(suppress=kw.pop("suppress", []))), **kw)
 
     
